@@ -110,8 +110,19 @@ def download(url, key_b64, file_path, file_name):
     else:
         dec_content = content
 
-    with open(os.path.join(file_path, file_name), 'wb') as file:
+    # --- CAMBIO PARA DESCARGA SEGURA (ATÓMICA) ---
+    final_full_path = os.path.join(file_path, file_name)
+    temp_full_path = final_full_path + ".part"
+
+    # 1. Guardamos en un archivo temporal (.part)
+    with open(temp_full_path, 'wb') as file:
         file.write(dec_content)
+    
+    # 2. Si se ha escrito todo bien, le quitamos el .part
+    # Si se va la luz antes de llegar aquí, solo tendrás el .part y el script lo reintentará la próxima vez
+    if os.path.exists(final_full_path):
+        os.remove(final_full_path) # Por seguridad, aunque overwrite=0 ya protege
+    os.rename(temp_full_path, final_full_path)
 
 def probe_endpoint_get(params, endpoint):
     token, null, null, app_server_url_get = get_config()
@@ -291,6 +302,12 @@ def list_videos(days):
     for dev in devs['deviceList']:
         params = 'deviceId=' + dev['deviceId'] + '&page=0&pageSize=3000&order=desc&startTime=' + start_time + '&endTime=' + end_time
         videos = probe_endpoint_get(params, endpoint)
+        
+        # --- AÑADE ESTO ---
+        if 'total' not in videos:
+            continue
+        # ------------------
+
         print('\nFound ' + str(videos['total']) + ' videos for ' + dev['alias'] + ':')
         if 'index' in videos:
             for video in videos['index']:
@@ -323,6 +340,13 @@ def download_videos(days, path, overwrite):
     for dev in devs['deviceList']:
         params = 'deviceId=' + dev['deviceId'] + '&page=0&pageSize=3000&order=desc&startTime=' + start_time + '&endTime=' + end_time
         videos = probe_endpoint_get(params, endpoint)
+
+        # --- AÑADE ESTO ---
+        if 'total' not in videos:
+            print('Saltando dispositivo ' + dev['alias'] + ' (sin videos)')
+            continue
+        # ------------------
+
         print('\nFound ' + str(videos['total']) + ' videos for ' + dev['alias'] + ':')
         if 'index' in videos:
             for video in videos['index']:
